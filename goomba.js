@@ -24,6 +24,12 @@ gmb.GUILayer = class{
         }
     }
 
+    onLeftClick(){
+        for (let i = 0; i < this.elements.length; i++){
+            if (this.elements[i].onLeftClick) this.elements[i].onLeftClick();
+        }  
+    }
+
     add(element){
         return this.elements.splice(0, 0, element);
     }
@@ -82,10 +88,16 @@ gmb.Application = class{
             strictLayers: false,
             clearColor: "#000000"
         };
-    }
+
+        this.mouseX = 0;
+        this.mouseY = 0;    }
 
     start(){
         setInterval(loopCallback, 16, this)
+        if (this.context){
+            this.context.canvas.addEventListener("mousemove", (evt) => this.__onMouseMoved(evt));
+            this.context.canvas.addEventListener("click", (evt) => this.__onClick(evt))
+        }
     }
 
     addGUILayer(name, position = -1){
@@ -132,6 +144,12 @@ gmb.Application = class{
         }
     }
 
+    onLeftClick(){
+        for (let i = 0; i < this.gui.length; i++){
+            this.gui[i].onLeftClick();
+        }
+    }
+
     getContext(){
         return this.context;
     }
@@ -155,6 +173,23 @@ gmb.Application = class{
         this.config.clearColor = color;
     }
 
+    //NATIVE EVENTS
+    __onMouseMoved(evt){
+        if (!this.context) return false;
+        let rect = this.context.canvas.getBoundingClientRect(), // abs. size of element
+        scaleX = this.context.canvas.width / rect.width,    // relationship bitmap vs. element for X
+        scaleY = this.context.canvas.height / rect.height;  // relationship bitmap vs. element for Y
+        this.mouseX = (evt.clientX - rect.left) * scaleX;
+        this.mouseY = (evt.clientY - rect.top) * scaleY;
+    }
+
+    __onClick(evt){
+        switch (evt.button) {
+            case 0:
+                this.onLeftClick();
+                break;
+        }
+    }
 }
 
 function assert(condition, error){
@@ -165,6 +200,19 @@ function assert(condition, error){
 gmb.cssColor = function(color){
     assert(typeof color == "number", "Bad argument #1 to cssColor : color must be a number.");
     return '#' + color.toString(16).padStart(6, "0")
+}
+
+gmb.isHovered = function(x, y, w, h, mx, my){
+
+    if (mx && mx.isApplication){
+        my = mx.mouseY;
+        mx = mx.mouseX;
+    }
+
+    document.getElementById('test').innerText = mx + ", " + my
+
+    return mx >= x && my >= y && mx <= x + w && my <= y + h;
+
 }
 
 gmb.loadImage = function(application, url, callback){
@@ -227,8 +275,212 @@ gmb.StaticImage = class extends gmb.GUIElement {
     }
 
     draw(context){
-        if (typeof context.drawImage == "function" && this.img.loaded){
-            context.drawImage(this.img, this.x, this.y);
+        if (typeof context.drawImage == "function"){
+            let w = this.w || this.img.w;
+            let h = this.h || this.img.h;
+            if (w && h){
+                context.drawImage(this.img, this.x, this.y, w, h);
+            } else {
+                context.drawImage(this.img, this.x, this.y);
+            }
         }
     }
+}
+
+gmb.Button = class extends gmb.GUIElement {
+    constructor(application, layerName, x, y, properties){
+        let draw, hover, click, leftClick, rightclick, w, h;
+
+        super(application, layerName, x, y)
+
+        if (typeof properties == "object"){
+            draw = properties.draw || properties.hovered;
+            hover = properties.hover || properties.hovered;
+            click = properties.click;
+            leftClick = properties.leftClick;
+            rightclick = properties.rightclick;
+            w = properties.w;
+            h = properties.h;
+            this.alwaysViewUnhovered = properties.alwaysViewUnhovered;
+        } else {
+            return true;
+        }
+
+        this.w = w;
+        this.h = h;
+
+        if (!leftClick){
+            leftClick = click;
+        }
+
+        this.leftClick = leftClick;
+        this.rightclick = rightclick;
+
+        this.unhovered = {}
+        if (typeof draw == "function"){
+            this.drawType == "function";
+            this.unhovered.toDraw = draw;
+        } else if (typeof draw == "string"){
+            this.unhovered.toDraw = gmb.loadImage(application, draw, (img) => this.imageLoadCallback);
+            this.drawType = "image";
+        } else if (typeof draw == "object"){
+            if (draw.toDraw || draw.img){
+                draw.toDraw = draw.img || draw.toDraw;
+                if (typeof draw.toDraw == "string"){
+                    draw.toDraw = gmb.loadImage(application, draw.toDraw, (img) => this.imageLoadCallback);
+                    this.drawType = "image";
+                }
+
+                if (typeof draw.toDraw == "function"){
+                    this.drawType = "function";
+                }
+
+                this.unhovered.toDraw = draw.toDraw;
+                this.unhovered.w = draw.w;
+                this.unhovered.h = draw.h;
+                this.unhovered.x = draw.x;
+                this.unhovered.y = draw.y;
+            } else {
+                this.unhovered.toDraw = draw;
+                this.drawType = "image"
+            }
+        }
+
+        this.hovered = {}
+        if (typeof hover == "function"){
+            this.hoverType == "function";
+            this.hovered.toDraw = hover;
+        } else if (typeof hover == "string"){
+            this.hovered.toDraw = gmb.loadImage(application, draw, (img) => this.imageLoadCallback(img));
+            this.hoverType = "image";
+        } else if (typeof hover == "object"){
+            if (hover.toDraw || hover.img){
+                hover.toDraw = hover.img || hover.toDraw;
+                if (typeof hover.toDraw == "string"){
+                    hover.toDraw = gmb.loadImage(application, hover.toDraw, (img) => this.imageLoadCallback);
+                    this.hoverType = "image";
+                }
+
+                if (typeof hover.toDraw == "function"){
+                    this.hoverType = "function";
+                }
+
+                this.hovered.toDraw = hover.toDraw;
+                this.hovered.w = hover.w;
+                this.hovered.h = hover.h;
+                this.hovered.x = hover.x;
+                this.hovered.y = hover.y;
+            } else {
+                this.hovered.toDraw = hover;
+                this.hoverType = "image"
+            }
+        }
+
+        if (this.unhovered.toDraw) this.w_ = this.unhovered.toDraw.width;
+        if (this.unhovered.toDraw) this.h_ = this.unhovered.toDraw.height;
+        this.x_ = this.x || this.unhovered.x || 0;
+        this.y_ = this.y || this.unhovered.y || 0;
+        this.w_ = this.w || this.unhovered.w || this.w_ || 0;
+        this.h_ = this.h || this.unhovered.h || this.h_ || 0;
+    }
+
+    imageLoadCallback(img){
+        this.w_ = this.w_ || img.width;
+        this.h_ = this.h_ || img.height;
+    }
+
+    draw(context){
+        let hover = this.isHovered()
+        if (!hover || this.alwaysViewUnhovered){
+            let x, y, w, h;
+            switch(this.drawType){
+                case "image" :
+                    x = this.unhovered.x || this.x;
+                    y = this.unhovered.y || this.y;
+                    w = this.unhovered.w || this.w;
+                    h = this.unhovered.h || this.h;
+                    if (context.drawImage){
+                        if (w && h){
+                            context.drawImage(this.unhovered.toDraw, x, y, w, h);
+                        } else {
+                            context.drawImage(this.unhovered.toDraw, x, y);
+                        }
+                    }
+                    this.x_ = x || this.x || 0;
+                    this.y_ = y || this.y_ || 0;
+                    this.w_ = w || this.unhovered.toDraw.width || this.w_;
+                    this.h_ = h || this.unhovered.toDraw.height || this.h_;
+                    break;
+                case "function":
+                    x = this.unhovered.x || this.x;
+                    y = this.unhovered.y || this.y;
+                    w = this.unhovered.w || this.w;
+                    h = this.unhovered.h || this.h;
+                    
+                    let res = this.unhovered.toDraw(x, y, w, h).bind(this)
+
+                    if (typeof res == "object"){
+                        x = res.x || x;
+                        y = res.y || y;
+                        w = res.w || w;
+                        h = res.h || h;
+                    }
+                    this.x_ = x || this.x_ || 0;
+                    this.y_ = y || this.y_ || 0;
+                    this.w_ = w || this.w_ || 0;
+                    this.h_ = h || this.h_ || 0;
+            }
+        }
+        if (hover){
+            let x, y, w, h;
+            switch(this.hoverType){
+                case "image" :
+                    x = this.hovered.x || this.x;
+                    y = this.hovered.y || this.y;
+                    w = this.hovered.w || this.w;
+                    h = this.hovered.h || this.h;
+                    if (context.drawImage){
+                        if (w && h){
+                            context.drawImage(this.hovered.toDraw, x, y, w, h);
+                        } else {
+                            context.drawImage(this.hovered.toDraw, x, y);
+                        }
+                    }
+                    this.x_ = x || this.x_ || 0;
+                    this.y_ = y || this.y_ || 0;
+                    this.w_ = w || this.hovered.toDraw.width || this.w_;
+                    this.h_ = h || this.hovered.toDraw.height || this.h_;
+                    break;
+                case "function":
+                    x = this.hovered.x || this.x;
+                    y = this.hovered.y || this.y;
+                    w = this.hovered.w || this.w;
+                    h = this.hovered.h || this.h;
+                    
+                    let res = this.hovered.toDraw(x, y, w, h).bind(this)
+
+                    if (typeof res == "object"){
+                        x = res.x || x;
+                        y = res.y || y;
+                        w = res.w || w;
+                        h = res.h || h;
+                    }
+                    this.x_ = x || this.x_ || 0;
+                    this.y_ = y || this.y_ || 0;
+                    this.w_ = w || this.w_ || 0;
+                    this.h_ = h || this.h_ || 0;
+            }
+        }
+    }
+
+    onLeftClick(){
+        if (this.isHovered() && typeof this.leftClick == "function"){
+            return this.leftClick();
+        }
+    }
+
+    isHovered(){
+        return gmb.isHovered(this.x_, this.y_, this.w_, this.h_, this.application)
+    }
+
 }
