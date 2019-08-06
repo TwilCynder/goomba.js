@@ -93,7 +93,7 @@ gmb.Application = class{
         this.mouseY = 0;    }
 
     start(){
-        setInterval(loopCallback, 16, this)
+        setInterval(loopCallback, 16.66, this)
         if (this.context){
             this.context.canvas.addEventListener("mousemove", (evt) => this.__onMouseMoved(evt));
             this.context.canvas.addEventListener("click", (evt) => this.__onClick(evt))
