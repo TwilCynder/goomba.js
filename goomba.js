@@ -480,7 +480,7 @@ gmb.Button = class extends gmb.GUIElement {
     }
 
     isHovered(){
-        return gmb.isHovered(this.x_, this.y_, this.w_, this.h_, this.application)
+        return gmb.isHovered(this.x_, this.y_, this.w_, this.h_, this.application);
     }
 
 }
