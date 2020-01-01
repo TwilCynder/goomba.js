@@ -1,3 +1,18 @@
+/*
+GoombaJS library
+by TwilCynder
+v0.1.0
+*/
+
+/*
+Usage :
+create an application with the gmb.Application() constructor
+define its main() method
+if you eed to load some files before, define its preload() method and use loadImage and loadScript in it
+
+*/
+
+
 var gmb = {}
 
 gmb.draw = function(element, context){
@@ -90,13 +105,29 @@ gmb.Application = class{
         };
 
         this.mouseX = 0;
-        this.mouseY = 0;    }
+        this.mouseY = 0;    
+    }
 
     start(){
         setInterval(loopCallback, 16.66, this)
         if (this.context){
             this.context.canvas.addEventListener("mousemove", (evt) => this.__onMouseMoved(evt));
             this.context.canvas.addEventListener("click", (evt) => this.__onClick(evt))
+        }
+
+        if (typeof this.preload == 'function'){
+            let app = this;
+            this.config.usePreload = true;
+            this.preload.filesRequired = 0;
+            this.preload.requiredFilesLoaded = 0;
+            this.preload.onload = function(){
+                if (app.preload.requiredFilesLoaded >= app.preload.filesRequired){
+                    app.main();
+                }
+            }
+            this.preload();
+        } else {
+            this.main();
         }
     }
 
@@ -209,13 +240,11 @@ gmb.isHovered = function(x, y, w, h, mx, my){
         mx = mx.mouseX;
     }
 
-    document.getElementById('test').innerText = mx + ", " + my
-
     return mx >= x && my >= y && mx <= x + w && my <= y + h;
 
 }
 
-gmb.loadImage = function(application, url, callback){
+gmb.loadImage = function(application, url, callback, required = true){
     assert(typeof url == "string", "Bad argument #2 to loadImage : url must be a string");
 
     let img = new Image();
@@ -226,11 +255,50 @@ gmb.loadImage = function(application, url, callback){
             application.onload(img);
         } 
         img.loaded = true;
+        if (application.config.usePreload && required){
+            application.preload.requiredFilesLoaded += 1; //if usePreload is true we assume all the propertied relative to file preloading are initialized
+            application.preload.onload();
+        } 
     };
     img.src = url;
     img.loaded = false;
-    
+
+    if (application.config.usePreload && required){
+        application.preload.filesRequired += 1; //if usePreload is true we assume all the propertied relative to file preloading are initialized
+        img.preloadRequired = true
+    }
+
     return img;
+}
+
+gmb.loadScript = function(application, url, callback, required = true){
+    assert(typeof url == "string", "Bad argument #2 to loadImage : url must be a string");
+    
+    let script = document.createElement('script');
+
+    script.onload = function(event){
+        let script = event.target
+        if (typeof callback == "function") callback(script);
+        if (applic2ation && typeof application.onload == "function"){
+            application.onload(script);
+        } 
+        script.loaded = true;
+        if (application.config.usePreload && required){
+            application.preload.requiredFilesLoaded += 1; //if usePreload is true we assume all the propertied relative to file preloading are initialized
+            application.preload.onload();
+        } 
+    };
+    script.src = url;
+    script.loaded = false;
+
+    if (application.config.usePreload && required){
+        application.preload.filesRequired += 1; //if usePreload is true we assume all the propertied relative to file preloading are initialized
+        script.preloadRequired = true
+    }
+
+    document.head.appendChild(script);
+
+    return script;
 }
 
 gmb.voidFunction = function(){};
